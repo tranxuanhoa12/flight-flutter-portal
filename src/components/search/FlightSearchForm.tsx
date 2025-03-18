@@ -8,8 +8,14 @@ import DateSelector from './DateSelector';
 import PassengerSelector from './PassengerSelector';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { flightService, FlightSearchParams } from '@/services/flightService';
 
-const FlightSearchForm = () => {
+interface FlightSearchFormProps {
+  onSearchResults?: (results: any[]) => void;
+}
+
+const FlightSearchForm: React.FC<FlightSearchFormProps> = ({ onSearchResults }) => {
+  const [loading, setLoading] = useState(false);
   const [tripType, setTripType] = useState('round');
   const [searchState, setSearchState] = useState({
     origin: '',
@@ -23,7 +29,7 @@ const FlightSearchForm = () => {
     }
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Basic validation
@@ -51,13 +57,44 @@ const FlightSearchForm = () => {
       toast.error('Please select a return date');
       return;
     }
-    
-    // Perform search action - in a real app this would call an API
-    toast.success('Searching for flights...', {
-      description: `From ${searchState.origin} to ${searchState.destination}`
-    });
-    
-    console.log('Search criteria:', searchState);
+
+    setLoading(true);
+
+    try {
+      // Prepare search parameters for the API
+      const searchParams: FlightSearchParams = {
+        origin: searchState.origin,
+        destination: searchState.destination,
+        departDate: searchState.departDate!.toISOString(),
+        adults: searchState.passengers.adults,
+        children: searchState.passengers.children,
+        infants: searchState.passengers.infants,
+      };
+      
+      // Add return date for round trips
+      if (tripType === 'round' && searchState.returnDate) {
+        searchParams.returnDate = searchState.returnDate.toISOString();
+      }
+      
+      // Call the flight search service
+      const results = await flightService.searchFlights(searchParams);
+      
+      // Pass results to parent component if callback exists
+      if (onSearchResults && results.length > 0) {
+        onSearchResults(results);
+      } else if (results.length === 0) {
+        toast.info('No flights found for your search criteria');
+      } else {
+        toast.success('Flights found!', {
+          description: `Found ${results.length} flights from ${searchState.origin} to ${searchState.destination}`
+        });
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      toast.error('Failed to search for flights');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const updateSearchState = (key: string, value: any) => {
@@ -65,6 +102,11 @@ const FlightSearchForm = () => {
       ...prev,
       [key]: value
     }));
+  };
+
+  // Return date should be on or after departure date
+  const getMinReturnDate = () => {
+    return searchState.departDate || new Date();
   };
 
   return (
@@ -108,6 +150,7 @@ const FlightSearchForm = () => {
             {tripType === 'round' && (
               <DateSelector 
                 label="Return Date" 
+                disableBefore={getMinReturnDate()}
                 onChange={(date) => updateSearchState('returnDate', date)}
               />
             )}
@@ -118,9 +161,15 @@ const FlightSearchForm = () => {
             />
           </div>
 
-          <Button type="submit" size="lg" className="w-full md:w-auto">
-            <Search className="mr-2 h-4 w-4" />
-            Search Flights
+          <Button type="submit" size="lg" className="w-full md:w-auto" disabled={loading}>
+            {loading ? (
+              <>Searching...</>
+            ) : (
+              <>
+                <Search className="mr-2 h-4 w-4" />
+                Search Flights
+              </>
+            )}
           </Button>
         </form>
       </Tabs>

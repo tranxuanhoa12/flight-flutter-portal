@@ -17,6 +17,7 @@ interface DateSelectorProps {
   defaultDate?: Date;
   className?: string;
   disablePastDates?: boolean;
+  disableBefore?: Date;
   onChange?: (date: Date | undefined) => void;
 }
 
@@ -26,6 +27,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({
   defaultDate,
   className,
   disablePastDates = true,
+  disableBefore,
   onChange
 }) => {
   const [date, setDate] = useState<Date | undefined>(defaultDate);
@@ -39,9 +41,16 @@ const DateSelector: React.FC<DateSelectorProps> = ({
     }
   };
 
-  // Function to disable past dates
-  const disabledDays = disablePastDates ? 
-    { before: new Date() } : undefined;
+  // Function to disable dates based on conditions
+  const disabledDays = () => {
+    if (disableBefore) {
+      return { before: disableBefore };
+    }
+    if (disablePastDates) {
+      return { before: new Date() };
+    }
+    return undefined;
+  };
 
   return (
     <div className={cn("relative space-y-1", className)}>
@@ -71,7 +80,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({
             mode="single"
             selected={date}
             onSelect={handleDateSelect}
-            disabled={disabledDays}
+            disabled={disabledDays()}
             initialFocus
             className="p-3 pointer-events-auto"
           />
